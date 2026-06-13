@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>清水國小 114學年度五下英語口語測驗：拼讀翻翻樂</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+    
+    body {
+      font-family: 'Noto Sans TC', 'Fredoka One', sans-serif;
+    }
+
+    /* 3D 翻牌動畫效果 */
+    .flap-container {
+      perspective: 1000px;
+    }
+    
+    .flap-card {
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+
+    .flap-card.flip-active {
+      transform: rotateX(-180deg);
+    }
+
+    .flap-front {
+      backface-visibility: hidden;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 模擬機械翻板時鐘的中間分界線 */
+    .split-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background-color: rgba(15, 23, 42, 0.8);
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 10;
+    }
+
+    /* 自訂發音字卡滾動條 */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 via-indigo-50 to-emerald-50 min-h-screen text-slate-800 pb-12">
+
+  <!-- 全螢幕粒子撒花 Canvas -->
+  <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50 w-full h-full"></canvas>
+
+  <!-- 頂部導航欄 -->
+  <header class="bg-white/90 backdrop-blur-md border-b border-blue-100 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md shadow-blue-200">
+          🏫
+        </div>
+        <div>
+          <h1 class="text-lg md:text-xl font-black text-blue-900 tracking-tight">
+            Phonics拼讀練習
+          </h1>
+        </div>
+      </div>
+      
+      <!-- 語音設定 -->
+      <div class="flex items-center gap-4 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 text-xs">
+        <label class="flex items-center gap-1.5 cursor-pointer font-bold text-blue-700">
+          <span>🔊 拼讀語速:</span>
+          <select id="voice-speed" class="bg-white border border-blue-200 rounded px-1 py-0.5 focus:outline-none">
+            <option value="0.5">慢速 (0.5x)</option>
+            <option value="0.75" selected>適中 (0.75x)</option>
+            <option value="0.95">正常 (0.95x)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- 核心遊戲容器 -->
+  <main class="max-w-4xl mx-auto px-4 mt-6">
+    
+    <!-- 網頁超大標題 -->
+    <div class="text-center mb-6">
+      <span class="bg-blue-600 text-white text-xl md:text-2xl font-extrabold px-6 py-2 rounded-full uppercase tracking-wider shadow-md mb-3 inline-block">
+        Phonics 自然拼讀翻牌器
+      </span>
+    </div>
+
+    <!-- 【核心出題區：置於網頁最上方】 -->
+    <section class="mb-6 bg-white rounded-3xl p-6 shadow-xl border border-blue-100">
+      <!-- 模式選單按鈕列 (藍色質感：亮/暗狀態對照) -->
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <button onclick="setGameMode('challenge')" id="tab-challenge" class="py-3 px-4 rounded-2xl font-black text-sm transition-all text-center">
+          🎯 看圖猜字
+        </button>
+        <button onclick="setGameMode('listening')" id="tab-listening" class="py-3 px-4 rounded-2xl font-black text-sm transition-all text-center">
+          🎧 聽音考驗
+        </button>
+        <button onclick="setGameMode('advanced')" id="tab-advanced" class="py-3 px-4 rounded-2xl font-black text-sm transition-all text-center">
+          🚀 進階考驗
+        </button>
+      </div>
+
+      <!-- 題目顯示黑框 (點擊發聲，極簡設計) -->
+      <div id="question-box" class="cursor-pointer bg-slate-900 border-4 border-blue-600 text-white rounded-2xl p-6 text-center shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-300 min-h-[120px] flex flex-col justify-center items-center">
+        <!-- JS 會根據模式動態填入題目卡片內容 -->
+      </div>
+    </section>
+
+    <!-- 【工作台區：大翻卡或進階音效板】 -->
+    <section class="bg-white rounded-3xl shadow-xl border border-blue-50 p-6 relative overflow-hidden mb-6">
+      
+      <!-- 卡片裝飾背景 -->
+      <div class="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -z-10"></div>
+      <div class="absolute bottom-0 left-0 w-32 h-32 bg-emerald-50 rounded-full blur-3xl -z-10"></div>
+
+      <!-- 1. 經典翻牌視圖 (Classic Flap View) -->
+      <div id="classic-flap-view" class="flex items-center justify-center gap-4 sm:gap-6 py-6">
+        
+        <!-- 字首切換按鈕 -->
+        <button onclick="shiftLeftIndex(-1)" class="bg-blue-100 hover:bg-blue-200 active:scale-90 text-blue-700 w-12 h-12 rounded-full flex items-center justify-center transition shadow-md font-black text-lg">
+          ◀
+        </button>
+
+        <!-- 字首卡片 -->
+        <div class="flex flex-col items-center">
+          <div class="flap-container" style="width: 120px; height: 140px;">
+            <div id="left-card" class="flap-card relative w-full h-full cursor-pointer">
+              <div class="flap-front bg-slate-900 border-4 border-blue-600 rounded-2xl flex flex-col items-center justify-center shadow-lg overflow-hidden">
+                <div class="split-line"></div>
+                <span id="left-text" class="text-4xl sm:text-5xl font-mono font-black text-yellow-300 select-none">ch</span>
+                <span class="absolute bottom-1 text-[9px] text-slate-500 uppercase font-bold">Onset</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 加號連結 -->
+        <div class="text-3xl font-black text-blue-400 self-center animate-pulse">＋</div>
+
+        <!-- 字尾卡片 -->
+        <div class="flex flex-col items-center">
+          <div class="flap-container" style="width: 120px; height: 140px;">
+            <div id="right-card" class="flap-card relative w-full h-full cursor-pointer">
+              <div class="flap-front bg-slate-900 border-4 border-blue-600 rounded-2xl flex flex-col items-center justify-center shadow-lg overflow-hidden">
+                <div class="split-line"></div>
+                <span id="right-text" class="text-4xl sm:text-5xl font-mono font-black text-cyan-300 select-none">air</span>
+                <span class="absolute bottom-1 text-[9px] text-slate-500 uppercase font-bold">Rime</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 字尾切換按鈕 -->
+        <button onclick="shiftRightIndex(1)" class="bg-blue-100 hover:bg-blue-200 active:scale-90 text-blue-700 w-12 h-12 rounded-full flex items-center justify-center transition shadow-md font-black text-lg">
+          ▶
+        </button>
+
+      </div>
+
+      <!-- 2. 進階 4直列小字卡音效板 (Advanced Grid View) -->
+      <div id="advanced-grid-view" class="hidden py-4">
+        <div class="grid grid-cols-1 md:grid-cols-11 gap-4 items-center">
+          
+          <!-- 左側：Onset 4直列小字卡 -->
+          <div class="md:col-span-5">
+            <h4 class="text-xs font-black text-slate-400 mb-2 uppercase tracking-wider text-center">字首零件 (Onset)</h4>
+            <div class="grid grid-cols-4 gap-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar" id="grid-onset-container">
+              <!-- JS 動態生成 Onset 按鈕 -->
+            </div>
+          </div>
+
+          <!-- 中間：加號 -->
+          <div class="md:col-span-1 text-center text-3xl font-black text-blue-300 py-2">＋</div>
+
+          <!-- 右側：Rime 4直列小字卡 -->
+          <div class="md:col-span-5">
+            <h4 class="text-xs font-black text-slate-400 mb-2 uppercase tracking-wider text-center">字尾零件 (Rime)</h4>
+            <div class="grid grid-cols-4 gap-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar" id="grid-rime-container">
+              <!-- JS 動態生成 Rime 按鈕 -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 【教學提示：精準定位於字卡下方，綠框上方】 -->
+      <div class="text-center my-4">
+        <p class="text-slate-900 text-lg sm:text-xl font-black tracking-wide leading-relaxed">
+          💡 直接點擊黑色卡片一下聽聲音🔈，點擊旁邊按鈕更換發音零件！
+        </p>
+      </div>
+
+      <!-- 【綠色拼音結果展示框】 -->
+      <div id="match-display" class="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center transition-all duration-300 min-h-[220px] flex flex-col justify-center items-center relative px-12">
+        
+        <!-- 組合字卡主卡片 (絕對水平置中) -->
+        <div class="flex items-center justify-center w-full">
+          <div id="assembled-word-card" class="bg-slate-900 border-4 border-blue-600 rounded-2xl py-4 px-8 shadow-xl cursor-pointer hover:scale-105 active:scale-95 transition-all flex flex-col items-center justify-center min-w-[200px] h-[90px] relative overflow-hidden">
+            <div class="split-line"></div>
+            <span id="assembled-word" class="text-4xl sm:text-5xl font-mono font-black text-emerald-400 select-none">chair</span>
+          </div>
+        </div>
+
+        <!-- 🔄 換字按鈕 (絕對定位靠右，不影響置中) -->
+        <button id="btn-random-word" onclick="randomizeCoreWord()" class="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-100 hover:bg-blue-200 active:scale-90 text-blue-700 font-extrabold px-3 py-2.5 rounded-xl transition shadow-md flex flex-col items-center gap-1">
+          <span class="text-xl">🔄</span>
+          <span class="text-[10px]">換字</span>
+        </button>
+
+        <!-- 中文翻譯與 Emoji 放大 300% -->
+        <h3 id="assembled-meaning" class="text-4xl sm:text-5xl font-black text-slate-900 mt-4 tracking-wider leading-normal">
+          🪑 椅子
+        </h3>
+
+        <!-- BINGO 閃爍進度貼紙 -->
+        <span id="match-status" class="mt-2 text-xs font-black px-3 py-1 rounded-full bg-green-100 text-green-700 border border-green-200 animate-pulse">
+          🎉 BINGO! 口試單字拼對囉！
+        </span>
+      </div>
+
+    </section>
+
+    <!-- 【底部：進度蓋章表】 -->
+    <section class="bg-slate-900 text-white rounded-3xl p-6 shadow-xl relative">
+      <div class="absolute top-4 right-4 text-xs font-extrabold text-blue-400 bg-slate-800 px-2 py-1 rounded">
+        清水國小 A大題單字庫
+      </div>
+      <h3 class="text-base font-extrabold mb-4 flex items-center gap-2">
+        <span>📋</span> 本次口試進度表
+      </h3>
+      <div id="progress-grid" class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+        <!-- JS 動態生成 10 個核心單字的進度按鈕 -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 全通關彈窗 (Modal) -->
+  <div id="victory-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50 p-4 opacity-0 pointer-events-none transition-all duration-500">
+    <div class="bg-white rounded-3xl max-w-md w-full p-8 text-center shadow-2xl border-4 border-emerald-400 scale-90 transition-transform duration-500" id="victory-content">
+      <div class="text-6xl mb-4 animate-bounce">🏆</div>
+      <h3 class="text-2xl font-black text-blue-950">超級拼音王！</h3>
+      <p class="text-slate-500 mt-2 text-sm">
+        太棒了！你已經成功拼出了所有的挑戰單字，口試必定拿高分！
+      </p>
+      
+      <div class="my-4 bg-emerald-50 rounded-2xl p-4 border border-emerald-200 text-left text-xs font-bold text-emerald-900 space-y-1">
+        <li>✅ 完美掌握英語單字結構</li>
+        <li>✅ 聽音與看圖拼讀 100 分通關</li>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="resetAllProgress()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-sm">
+          🔄 重新挑戰
+        </button>
+        <button onclick="closeVictoryModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition text-sm">
+          關閉
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript 核心控制 -->
+  <script>
+    
+    // 10 個考卷核心單字 (100% 匹配 210675.jpg)
+    const coreWords = [
+      { id: 1, left: "lun", right: "ch", full: "lunch", translation: "午餐", emoji: "🍱" },
+      { id: 2, left: "wh", right: "en", full: "when", translation: "當...的時候", emoji: "⏰" },
+      { id: 3, left: "th", right: "is", full: "this", translation: "這個", emoji: "👇" },
+      { id: 4, left: "sh", right: "op", full: "shop", translation: "商店", emoji: "🏪" },
+      { id: 5, left: "gra", right: "ph", full: "graph", translation: "圖表", emoji: "📈" },
+      { id: 6, left: "wh", right: "ite", full: "white", translation: "白色", emoji: "⬜" },
+      { id: 7, left: "tee", right: "th", full: "teeth", translation: "牙齒", emoji: "🦷" },
+      { id: 8, left: "ph", right: "one", full: "phone", translation: "電話", emoji: "📱" },
+      { id: 9, left: "ch", right: "urch", full: "church", translation: "教堂", emoji: "⛪" },
+      { id: 10, left: "ch", right: "air", full: "chair", translation: "椅子", emoji: "🪑" }
+    ];
+
+    // 進階模式單字庫 (由對照表擴充，合計豐富拼讀庫)
+    const advancedWords = [
+      { id: 11, left: "b", right: "ag", full: "bag", translation: "提袋", emoji: "🛍️" },
+      { id: 12, left: "d", right: "og", full: "dog", translation: "小狗", emoji: "🐶" },
+      { id: 13, left: "f", right: "ox", full: "fox", translation: "狐狸", emoji: "🦊" },
+      { id: 14, left: "k", right: "ey", full: "key", translation: "鑰匙", emoji: "🔑" },
+      { id: 15, left: "p", right: "ig", full: "pig", translation: "小豬", emoji: "🐷" },
+      { id: 16, left: "s", right: "ad", full: "sad", translation: "傷心", emoji: "😢" },
+      { id: 17, left: "z", right: "ip", full: "zip", translation: "拉鍊", emoji: "🤐" },
+      { id: 18, left: "bl", right: "ack", full: "black", translation: "黑色", emoji: "⬛" },
+      { id: 19, left: "bl", right: "ue", full: "blue", translation: "藍色", emoji: "🟦" },
+      { id: 20, left: "cl", right: "ock", full: "clock", translation: "時鐘", emoji: "⏰" },
+      { id: 21, left: "fl", right: "ag", full: "flag", translation: "旗幟", emoji: "🚩" },
+      { id: 22, left: "gl", right: "ass", full: "glass", translation: "玻璃杯", emoji: "🥛" },
+      { id: 23, left: "pl", right: "ay", full: "play", translation: "玩耍", emoji: "🪁" },
+      { id: 24, left: "sl", right: "eep", full: "sleep", translation: "睡覺", emoji: "😴" },
+      { id: 25, left: "br", right: "ead", full: "bread", translation: "麵包", emoji: "🍞" },
+      { id: 26, left: "cr", right: "ab", full: "crab", translation: "螃蟹", emoji: "🦀" },
+      { id: 27, left: "dr", right: "um", full: "drum", translation: "鼓", emoji: "🥁" },
+      { id: 28, left: "fr", right: "og", full: "frog", translation: "青蛙", emoji: "🐸" },
+      { id: 29, left: "gr", right: "een", full: "green", translation: "綠色", emoji: "🟩" },
+      { id: 30, left: "tr", right: "ee", full: "tree", translation: "大樹", emoji: "🌳" },
+      { id: 31, left: "sk", right: "y", full: "sky", translation: "天空", emoji: "☁️" },
+      { id: 32, left: "sn", right: "ow", full: "snow", translation: "下雪", emoji: "❄️" },
+      { id: 33, left: "sp", right: "oon", full: "spoon", translation: "湯匙", emoji: "🥄" },
+      { id: 34, left: "st", right: "ar", full: "star", translation: "星星", emoji: "⭐" },
+      { id: 35, left: "sw", right: "im", full: "swim", translation: "游泳", emoji: "🏊" },
+      { id: 36, left: "tw", right: "ins", full: "twins", translation: "雙胞胎", emoji: "👥" },
+      { id: 37, left: "kn", right: "ee", full: "knee", translation: "膝蓋", emoji: "🦵" },
+      { id: 38, left: "wr", right: "ite", full: "write", translation: "寫字", emoji: "✍️" },
+      { id: 39, left: "ch", right: "air", full: "chair", translation: "椅子", emoji: "🪑" }
+    ];
+
+    // 合併完整合法字庫
+    const fullValidWordsPool = [...coreWords, ...advancedWords];
+
+    // 自然拼讀音素映射 (確保個別發音卡不會拆字)
+    const phoneticMap = {
+      // Onsets
+      "lun": "lun", "wh": "wuh", "th": "thuh", "sh": "shh", "gra": "gra", "tee": "tee", "ph": "fuh", "ch": "chuh",
+      "b": "buh", "d": "duh", "f": "fuh", "g": "guh", "h": "huh", "j": "juh", "k": "kuh", "l": "luh", "m": "muh", 
+      "n": "nuh", "p": "puh", "r": "ruh", "s": "ss", "t": "tuh", "v": "vuh", "w": "wuh", "y": "yuh", "z": "zuh",
+      "bl": "bluh", "cl": "cluh", "fl": "fluh", "gl": "gluh", "pl": "pluh", "sl": "sluh",
+      "br": "bruh", "cr": "cruh", "dr": "druh", "fr": "fruh", "gr": "gruh", "pr": "pruh", "tr": "truh",
+      "sc": "skuh", "sk": "skuh", "sm": "smuh", "sn": "snuh", "sp": "spuh", "st": "stuh", "sw": "swuh",
+      "tw": "twuh", "kn": "nuh", "wr": "ruh",
+      // Rimes
+      "ch": "chuh", "en": "en", "is": "is", "op": "op", "ph": "ff", "ite": "ite", "th": "th", "one": "own", "urch": "urch", "air": "air",
+      "ag": "ag", "og": "og", "ox": "ox", "ey": "ee", "ig": "ig", "ad": "ad", "ip": "ip", "ack": "ack", "ue": "oo",
+      "ock": "ock", "ass": "as", "eep": "eep", "ead": "ed", "ab": "ab", "um": "um", "een": "een", "ee": "ee",
+      "y": "ai", "ow": "ow", "oon": "oon", "ar": "ar", "im": "im", "ins": "ins"
+    };
+
+    // 發音零件排列集
+    const leftList = ["lun", "wh", "th", "sh", "gra", "tee", "ph", "ch"];
+    const rightList = ["ch", "en", "is", "op", "ph", "ite", "th", "one", "urch", "air"];
+
+    // 完整的進階發音零件
+    const advancedLeftList = Array.from(new Set(fullValidWordsPool.map(w => w.left))).sort();
+    const advancedRightList = Array.from(new Set(fullValidWordsPool.map(w => w.right))).sort();
+
+    // 遊戲狀態
+    let currentLeftIndex = 7; // ch
+    let currentRightIndex = 9; // air
+    let gameMode = 'challenge'; // 'challenge', 'listening', 'advanced'
+    
+    // 進度儲存
+    let challengeProgress = new Set();
+    let listeningProgress = new Set();
+    let advancedProgress = new Set();
+
+    // 關卡索引
+    let challengeWordIndex = 0;
+    let challengeList = [];
+    let listeningWordIndex = 0;
+    let listeningList = [];
+    let advancedWordIndex = 0;
+    let advancedList = [];
+
+    // 音效
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+
+    function playBeep(frequency, duration, type = 'sine', volume = 0.1) {
+      try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) { console.log(e); }
+    }
+
+    function playFlipSound() {
+      playBeep(800, 0.05, 'triangle', 0.12);
+      setTimeout(() => playBeep(400, 0.03, 'sine', 0.08), 20);
+    }
+
+    function playSuccessSound() {
+      const notes = [261.63, 329.63, 392.00, 523.25];
+      notes.forEach((freq, idx) => {
+        setTimeout(() => playBeep(freq, 0.25, 'triangle', 0.15), idx * 80);
+      });
+    }
+
+    function playVictorySound() {
+      const notes = [523.25, 523.25, 523.25, 523.25, 659.25, 587.33, 659.25, 783.99];
+      const durations = [0.15, 0.15, 0.15, 0.3, 0.15, 0.15, 0.15, 0.6];
+      let delay = 0;
+      notes.forEach((freq, idx) => {
+        setTimeout(() => playBeep(freq, durations[idx], 'triangle', 0.2), delay);
+        delay += durations[idx] * 1000 + 40;
+      });
+    }
+
+    // 初始化載入
+    window.onload = function() {
+      initGame();
+      // 綁定字卡單擊發音事件
+      document.getElementById('left-card').addEventListener('click', speakLeftCard);
+      document.getElementById('right-card').addEventListener('click', speakRightCard);
+      document.getElementById('assembled-word-card').addEventListener('click', speakCombinedCard);
+      
+      setGameMode('challenge'); // 預設進考題模式
+    };
+
+    function initGame() {
+      // 亂數洗牌出題
+      challengeList = [...coreWords].sort(() => Math.random() - 0.5);
+      listeningList = [...coreWords].sort(() => Math.random() - 0.5);
+      advancedList = [...advancedWords].sort(() => Math.random() - 0.5);
+      renderProgressUI();
+    }
+
+
+    function getPhoneticSpelling(part) {
+      return phoneticMap[part.toLowerCase()] || part;
+    }
+
+    // 讀字首發音
+    function speakLeftCard() {
+      const part = gameMode === 'advanced' ? advancedLeftList[currentLeftIndex] : leftList[currentLeftIndex];
+      const speechText = getPhoneticSpelling(part);
+      speakWord(speechText, 'en-US', 0.6);
+      playFlipSound();
+    }
+
+    // 讀字尾發音
+    function speakRightCard() {
+      const part = gameMode === 'advanced' ? advancedRightList[currentRightIndex] : rightList[currentRightIndex];
+      const speechText = getPhoneticSpelling(part);
+      speakWord(speechText, 'en-US', 0.6);
+      playFlipSound();
+    }
+
+    // 直接朗讀合併單字
+    function speakCombinedCard() {
+      const leftPart = gameMode === 'advanced' ? advancedLeftList[currentLeftIndex] : leftList[currentLeftIndex];
+      const rightPart = gameMode === 'advanced' ? advancedRightList[currentRightIndex] : rightList[currentRightIndex];
+      speakWord(leftPart + rightPart, 'en-US');
+    }
+
+    function speakWord(text, lang = 'en-US', customRate = null) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const speed = customRate || parseFloat(document.getElementById('voice-speed').value) || 0.75;
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = lang;
+      utter.rate = speed;
+      window.speechSynthesis.speak(utter);
+    }
+
+    // 滾動/位移字首 (Classic)
+    function shiftLeftIndex(direction) {
+      currentLeftIndex = (currentLeftIndex + direction + leftList.length) % leftList.length;
+      playFlipSound();
+      updateFlapDisplay(false);
+    }
+
+    // 滾動/位移字尾 (Classic)
+    function shiftRightIndex(direction) {
+      currentRightIndex = (currentRightIndex + direction + rightList.length) % rightList.length;
+      playFlipSound();
+      updateFlapDisplay(false);
+    }
+
+    // 隨機切換至核心庫其中一個字
+    function randomizeCoreWord() {
+      const randWord = coreWords[Math.floor(Math.random() * coreWords.length)];
+      currentLeftIndex = leftList.indexOf(randWord.left);
+      currentRightIndex = rightList.indexOf(randWord.right);
+      playFlipSound();
+      updateFlapDisplay(true); // 自動唸出單字
+    }
+
+
+    function updateFlapDisplay(allowSpeech = true) {
+      const leftPart = gameMode === 'advanced' ? advancedLeftList[currentLeftIndex] : leftList[currentLeftIndex];
+      const rightPart = gameMode === 'advanced' ? advancedRightList[currentRightIndex] : rightList[currentRightIndex];
+      const blended = leftPart + rightPart;
+
+      document.getElementById('left-text').innerText = leftPart;
+      document.getElementById('right-text').innerText = rightPart;
+      document.getElementById('assembled-word').innerText = blended;
+
+      const matchedWord = fullValidWordsPool.find(w => w.full === blended);
+      const meaningEl = document.getElementById('assembled-meaning');
+      const statusEl = document.getElementById('match-status');
+      const displayEl = document.getElementById('match-display');
+
+      if (matchedWord) {
+        meaningEl.innerText = `${matchedWord.emoji} ${matchedWord.translation}`;
+        statusEl.classList.remove('hidden');
+        displayEl.className = "bg-green-50 border-2 border-green-300 rounded-2xl p-4 text-center transition-all duration-300 min-h-[220px] flex flex-col justify-center items-center relative px-12 scale-102";
+        
+        // 觸發自動語音 (直接唸出單字)
+        if (allowSpeech) {
+          speakWord(matchedWord.full);
+        }
+
+        // 檢查是否符合當前考題目標
+        checkQuizSuccess(matchedWord);
+
+      } else {
+        meaningEl.innerText = "🔍 組合發音中...";
+        statusEl.classList.add('hidden');
+        displayEl.className = "bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center transition-all duration-300 min-h-[220px] flex flex-col justify-center items-center relative px-12";
+      }
+    }
+
+    // 闖關比對成功
+    function checkQuizSuccess(matchedWord) {
+      if (gameMode === 'challenge') {
+        const target = challengeList[challengeWordIndex];
+        if (matchedWord.full === target.full && !challengeProgress.has(target.id)) {
+          challengeProgress.add(target.id);
+          triggerBingoEffect();
+          setTimeout(() => advanceQuiz(), 2500);
+        }
+      } 
+      else if (gameMode === 'listening') {
+        const target = listeningList[listeningWordIndex];
+        if (matchedWord.full === target.full && !listeningProgress.has(target.id)) {
+          listeningProgress.add(target.id);
+          triggerBingoEffect();
+          setTimeout(() => advanceQuiz(), 2500);
+        }
+      }
+      else if (gameMode === 'advanced') {
+        const target = advancedList[advancedWordIndex];
+        if (matchedWord.full === target.full && !advancedProgress.has(target.id)) {
+          advancedProgress.add(target.id);
+          triggerBingoEffect();
+          setTimeout(() => advanceQuiz(), 2500);
+        }
+      }
+      renderProgressUI();
+    }
+
+    function triggerBingoEffect() {
+      playSuccessSound();
+      createConfettiExplosion();
+    }
+
+    // 往下推進關卡
+    function advanceQuiz() {
+      if (gameMode === 'challenge') {
+        if (challengeWordIndex < challengeList.length - 1) {
+          challengeWordIndex++;
+        } else {
+          triggerUltimateVictory();
+        }
+      } 
+      else if (gameMode === 'listening') {
+        if (listeningWordIndex < listeningList.length - 1) {
+          listeningWordIndex++;
+        } else {
+          triggerUltimateVictory();
+        }
+      }
+      else if (gameMode === 'advanced') {
+        if (advancedWordIndex < advancedList.length - 1) {
+          advancedWordIndex++;
+        } else {
+          triggerUltimateVictory();
+        }
+      }
+      renderQuestionPanel();
+      updateFlapDisplay(false); // 進入下一關，發音零件歸位，不自動播音
+    }
+
+
+    function setGameMode(mode) {
+      gameMode = mode;
+      
+      // 切換按鈕風格 (亮/暗 藍色外框樣式對應)
+      const modes = ['challenge', 'listening', 'advanced'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`tab-${m}`);
+        if (m === mode) {
+          btn.className = "py-3 px-4 rounded-2xl font-black text-sm transition-all text-center bg-slate-900 border-4 border-blue-600 text-white shadow-md";
+        } else {
+          btn.className = "py-3 px-4 rounded-2xl font-black text-sm transition-all text-center bg-blue-50/50 border-2 border-blue-300 text-blue-600 hover:bg-blue-100";
+        }
+      });
+
+      // 控制展示經典卡或進階鋼琴面板
+      if (mode === 'advanced') {
+        document.getElementById('classic-flap-view').classList.add('hidden');
+        document.getElementById('advanced-grid-view').classList.remove('hidden');
+        document.getElementById('btn-random-word').classList.add('hidden'); // 進階不需要換字鈕
+        renderAdvancedGridUI();
+      } else {
+        document.getElementById('classic-flap-view').classList.remove('hidden');
+        document.getElementById('advanced-grid-view').classList.add('hidden');
+        document.getElementById('btn-random-word').classList.remove('hidden');
+      }
+
+      renderQuestionPanel();
+      updateFlapDisplay(false);
+      renderProgressUI();
+    }
+
+    // 渲染上方題目控制面板 (無雜亂輔助文字、無 speaker 喇叭，點擊卡片發音)
+    function renderQuestionPanel() {
+      const box = document.getElementById('question-box');
+      
+      if (gameMode === 'challenge') {
+        const target = challengeList[challengeWordIndex];
+        box.innerHTML = `
+          <div class="flex flex-col items-center justify-center">
+            <span class="text-5xl">${target.emoji}</span>
+            <span class="text-3xl font-black mt-2 tracking-widest">${target.translation}</span>
+          </div>
+        `;
+        // 清空背景藍框發光
+        box.className = "cursor-pointer bg-slate-900 border-4 border-blue-600 text-white rounded-2xl p-6 text-center shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-300 min-h-[120px] flex flex-col justify-center items-center";
+        
+        box.onclick = function() {
+          speakWord(target.translation, 'zh-TW'); // 點擊大卡片播放中文
+        };
+      } 
+      else if (gameMode === 'listening') {
+        const target = listeningList[listeningWordIndex];
+        box.innerHTML = `
+          <div class="flex flex-col items-center justify-center gap-1">
+            <span class="text-5xl">📢</span>
+            <span class="text-xl font-bold tracking-wider">點擊卡片聽取發音</span>
+          </div>
+        `;
+        box.onclick = function() {
+          speakWord(target.full, 'en-US'); // 點擊播放英文單字
+        };
+      }
+      else if (gameMode === 'advanced') {
+        const target = advancedList[advancedWordIndex];
+        box.innerHTML = `
+          <div class="flex flex-col items-center justify-center gap-1">
+            <span class="text-5xl">🚀</span>
+            <span class="text-xl font-bold tracking-wider">進階挑戰：點我聽題目發音</span>
+          </div>
+        `;
+        box.onclick = function() {
+          speakWord(target.full, 'en-US'); // 點擊播放進階英文發音
+        };
+      }
+    }
+
+
+    function renderAdvancedGridUI() {
+      const onsetContainer = document.getElementById('grid-onset-container');
+      const rimeContainer = document.getElementById('grid-rime-container');
+
+      // 初始化渲染 Onset 零件 (4直列，高度 h-14 sm:h-16 垂直/水平置中)
+      onsetContainer.innerHTML = advancedLeftList.map((part, index) => {
+        return `
+          <button onclick="selectGridOnset(${index})" id="adv-onset-${index}" class="h-14 sm:h-16 text-sm sm:text-base font-mono font-black rounded-xl transition-all flex items-center justify-center border-2 shadow-sm">
+            ${part}
+          </button>
+        `;
+      }).join('');
+
+      // 初始化渲染 Rime 零件
+      rimeContainer.innerHTML = advancedRightList.map((part, index) => {
+        return `
+          <button onclick="selectGridRime(${index})" id="adv-rime-${index}" class="h-14 sm:h-16 text-sm sm:text-base font-mono font-black rounded-xl transition-all flex items-center justify-center border-2 shadow-sm">
+            ${part}
+          </button>
+        `;
+      }).join('');
+
+      updateAdvancedGridUI();
+    }
+
+    // 更新進階網格的點選高亮 & 智慧防呆灰階機制
+    function updateAdvancedGridUI() {
+      const activeLeft = advancedLeftList[currentLeftIndex];
+      const activeRight = advancedRightList[currentRightIndex];
+
+      // 1. 找出所有與 activeLeft 可搭配的合法 Rimes
+      const validRimesForActiveLeft = fullValidWordsPool
+        .filter(w => w.left === activeLeft)
+        .map(w => w.right);
+
+      // 2. 更新字首按鈕高亮狀態
+      advancedLeftList.forEach((part, index) => {
+        const btn = document.getElementById(`adv-onset-${index}`);
+        if (!btn) return;
+        if (index === currentLeftIndex) {
+          btn.className = "h-14 sm:h-16 text-base sm:text-lg font-mono font-black rounded-xl bg-yellow-300 text-slate-900 border-yellow-500 shadow-md scale-102 flex items-center justify-center z-10";
+        } else {
+          btn.className = "h-14 sm:h-16 text-sm sm:text-base font-mono font-black rounded-xl bg-slate-900 text-slate-100 border-slate-700 hover:bg-slate-800 flex items-center justify-center";
+        }
+      });
+
+      // 3. 更新字尾按鈕高亮/灰階不可選取狀態
+      advancedRightList.forEach((part, index) => {
+        const btn = document.getElementById(`adv-rime-${index}`);
+        if (!btn) return;
+
+        const isValid = validRimesForActiveLeft.includes(part);
+
+        if (index === currentRightIndex) {
+          // 被選中的 Rime 高亮青色
+          btn.className = "h-14 sm:h-16 text-base sm:text-lg font-mono font-black rounded-xl bg-cyan-300 text-slate-900 border-cyan-500 shadow-md scale-102 flex items-center justify-center z-10";
+          btn.disabled = false;
+        } else if (isValid) {
+          // 可拼裝：正常亮卡
+          btn.className = "h-14 sm:h-16 text-sm sm:text-base font-mono font-black rounded-xl bg-slate-900 text-slate-100 border-slate-700 hover:bg-slate-800 flex items-center justify-center";
+          btn.disabled = false;
+        } else {
+          // 不可拼裝：灰階化 + 禁止點按
+          btn.className = "h-14 sm:h-16 text-sm sm:text-base font-mono font-black rounded-xl bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed opacity-30 flex items-center justify-center";
+          btn.disabled = true;
+        }
+      });
+    }
+
+    function selectGridOnset(index) {
+      currentLeftIndex = index;
+      playFlipSound();
+      speakLeftCard();
+      
+      // 按下字首後，自動重設一個可搭配的預設字尾，防止點選後因前一字尾無效而被反白
+      const activeLeft = advancedLeftList[currentLeftIndex];
+      const firstValidWord = fullValidWordsPool.find(w => w.left === activeLeft);
+      if (firstValidWord) {
+        const matchingRimeIndex = advancedRightList.indexOf(firstValidWord.right);
+        if (matchingRimeIndex !== -1) {
+          currentRightIndex = matchingRimeIndex;
+        }
+      }
+
+      updateAdvancedGridUI();
+      updateFlapDisplay(false);
+    }
+
+    function selectGridRime(index) {
+      currentRightIndex = index;
+      playFlipSound();
+      speakRightCard();
+      updateAdvancedGridUI();
+      updateFlapDisplay(false);
+    }
+
+
+    function renderProgressUI() {
+      const container = document.getElementById('progress-grid');
+      container.innerHTML = coreWords.map((word, index) => {
+        
+        let isDone = false;
+        if (gameMode === 'challenge') isDone = challengeProgress.has(word.id);
+        else if (gameMode === 'listening') isDone = listeningProgress.has(word.id);
+        else if (gameMode === 'advanced') isDone = advancedProgress.has(word.id);
+
+        const star = isDone ? "⭐" : "☆";
+        const btnBg = isDone ? "bg-blue-950 border-2 border-blue-500/50 text-white" : "bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400";
+
+        return `
+          <button onclick="shortcutSelectCore(${index})" class="flex items-center justify-between p-2.5 rounded-xl transition text-left group ${btnBg}">
+            <div>
+              <span class="block text-[8px] text-blue-400 uppercase font-bold">${index + 1}. Card</span>
+              <span class="text-xs font-black group-hover:text-yellow-300 tracking-wide">${word.full}</span>
+            </div>
+            <span class="text-sm font-bold">${star}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function shortcutSelectCore(wordIndex) {
+      if (gameMode === 'advanced') {
+        alert("請切換為『看圖猜字』或『聽音考驗』才可連動進度按鍵喔！");
+        return;
+      }
+      const target = coreWords[wordIndex];
+      currentLeftIndex = leftList.indexOf(target.left);
+      currentRightIndex = rightList.indexOf(target.right);
+      playFlipSound();
+      updateFlapDisplay(true); // 連動並直接發音
+    }
+
+    function resetAllProgress() {
+      challengeProgress.clear();
+      listeningProgress.clear();
+      advancedProgress.clear();
+      challengeWordIndex = 0;
+      listeningWordIndex = 0;
+      advancedWordIndex = 0;
+      initGame();
+      setGameMode('challenge');
+      closeVictoryModal();
+    }
+
+    function triggerUltimateVictory() {
+      playVictorySound();
+      for (let i = 0; i < 4; i++) {
+        setTimeout(() => createConfettiExplosion(80), i * 500);
+      }
+      const modal = document.getElementById('victory-modal');
+      const content = document.getElementById('victory-content');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+      content.classList.remove('scale-90');
+    }
+
+    function closeVictoryModal() {
+      const modal = document.getElementById('victory-modal');
+      const content = document.getElementById('victory-content');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      content.classList.add('scale-90');
+    }
+
+
+    const canvas = document.getElementById('confetti-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let animId = null;
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    class Confetti {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = Math.random() * 8 + 4;
+        this.color = `hsl(${Math.random() * 360}, 100%, 60%)`;
+        this.spX = Math.random() * 10 - 5;
+        this.spY = Math.random() * -12 - 4;
+        this.g = 0.25;
+        this.rot = Math.random() * 360;
+        this.rotSpeed = Math.random() * 4 - 2;
+        this.opacity = 1;
+      }
+      update() {
+        this.spY += this.g;
+        this.x += this.spX;
+        this.y += this.spY;
+        this.rot += this.rotSpeed;
+        this.opacity -= 0.012;
+      }
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate((this.rot * Math.PI) / 180);
+        ctx.globalAlpha = this.opacity;
+        ctx.fillStyle = this.color;
+        if (this.size > 8) {
+          ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, this.size/2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    function createConfettiExplosion(count = 50) {
+      const x = Math.random() * (canvas.width * 0.6) + canvas.width * 0.2;
+      const y = canvas.height + 10;
+      for (let i = 0; i < count; i++) {
+        particles.push(new Confetti(x, y));
+      }
+      if (!animId) runParticles();
+    }
+
+    function runParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw();
+        if (particles[i].opacity <= 0 || particles[i].y > canvas.height + 10) {
+          particles.splice(i, 1);
+        }
+      }
+      if (particles.length > 0) {
+        animId = requestAnimationFrame(runParticles);
+      } else {
+        cancelAnimationFrame(animId);
+        animId = null;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  </script>
+</body>
+</html>
